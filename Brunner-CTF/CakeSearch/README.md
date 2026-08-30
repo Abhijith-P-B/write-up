@@ -21,7 +21,7 @@ toc: true
 
 We start by throwing the APK into jadx and looking at what we're dealing with.
 
-The app is called CakeSearch — a job posting board for "Brunnerne Inc." The challenge description hints that only some postings are visible, which already tells us there's something being hidden.
+The app is called CakeSearch, a job posting board for "Brunnerne Inc." The challenge description hints that only some postings are visible, which already tells us there's something being hidden.
 
 Looking at the manifest, just few activities. We move on to the source.
 
@@ -45,7 +45,7 @@ So the entire job board is just a WebView loading a remote URL. More importantly
 
 ### The Bridge (h7.java)
 
-Looking at the methods having `@JavascriptInterface` (these are callable from the page):
+Look at the methods having `@JavascriptInterface` (these are callable from the page):
 
 ```java
 @JavascriptInterface
@@ -67,7 +67,7 @@ public final String decrypt(String str) {
 public final String getAppVersion() { return "2.1-sealed"; }
 ```
 
-The log message helps us alot — `"Could not unseal a requisition payload"`. Some job postings arrive sealed (encrypted) and this `decrypt()` method is what unlocks them. The version string `"2.1-sealed"` confirms this is intentional. That's the "or at least some of them..." from the challenge description right there.
+The log message helps us alot:  `"Could not unseal a requisition payload"`. Some job postings arrive sealed (encrypted) and this `decrypt()` method is what unlocks them. The version string `"2.1-sealed"` confirms this is intentional. That's the "or at least some of them..." from the challenge description right there.
 
 ### TokenSigner.java — things go native
 
@@ -95,17 +95,17 @@ public final class TokenSigner {
 
 We can figure out two things from here:
 
-1. `role` is always hardcoded to the literal string `"user"` — there is no way through the app that can change this
-2. Both `nativeContentKey()` and `nativeSign()` are `native` methods — their actual code lives in `libcakesearch.so`, not in the Java layer
+1. `role` is always hardcoded to the literal string `"user"` . there is no way through the app that can change this
+2. Both `nativeContentKey()` and `nativeSign()` are `native` methods . their actual code lives in `libcakesearch.so`, not in Java code.
 
-We also quickly check the decrypt routine to understand the crypto format:
+We then check the decrypt routine to understand the crypto format:
 
 ```java
 public String w(String str) {
     byte[] decode = Base64.decode(str, 0);
-    byte[] nonce = Arrays.copyOfRange(decode, 0, 12);        // first 12 bytes
+    byte[] nonce = Arrays.copyOfRange(decode, 0, 12);        
     byte[] ciphertext = Arrays.copyOfRange(decode, 12, decode.length);
-    byte[] key = tokenSigner.a();                             // nativeContentKey()
+    byte[] key = tokenSigner.a();                            
 
     Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
     cipher.init(2, new SecretKeySpec(key, "AES"), new GCMParameterSpec(128, nonce));
@@ -137,7 +137,7 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 
 
 
-That last string is obviously base64 — decoding it gives `{"alg":"HS256","typ":"JWT"}`. So the tokens are standard HS256 JWTs.
+That last string is obviously base64, decoding it gives `{"alg":"HS256","typ":"JWT"}`. So the tokens are HS256 JWTs.
 
 Running `nm -D` confirms the exported symbols with their addresses:
 
@@ -152,7 +152,7 @@ nm -D libcakesearch.so
 0000000000001008 T Java_dk_brunnerne_cakesearch_crypto_TokenSigner_nativeSign
 
 
-`T` means these are real functions defined inside this binary — not borrowed from a library. The names weren't stripped, which gives us exact targets to jump to.
+`T` means these are real functions defined inside this binary, not borrowed from a library. The names weren't stripped, which gives us exact targets to jump to.
 
 ---
 
@@ -183,7 +183,7 @@ void cs_content_key(undefined8 param_1)
 }
 ```
 
-The constants `0x41c64e6d` and `0x3039` are not arbitrary — those are the exact multiplier and increment of the classic **ANSI C `rand()`** linear congruential generator. This isn't custom crypto; it's a well-known, fully predictable PRNG being used as a keystream. Since the seed `0xca4e5ea2` (that's `-0x35b1a15e` as unsigned 32-bit) is hardcoded, we can reproduce the entire sequence ourselves.
+The constants `0x41c64e6d` and `0x3039` are actually the well-known constants of the classic C `rand()` function — and the seed `0xca4e5ea2` is hardcoded right there in the binary. So we can just run the same sequence ourselves in Python and get the exact same output.
 
 The logic is:
 
@@ -201,7 +201,7 @@ flowchart TD
     H --> J["HS256 signing key"]
 ```
 
-Checking `cs_sign_payload` confirms it uses the exact same deobfuscation loop — same seed, same blob at `0x10077b` — but the deobfuscated bytes are passed directly as the HMAC key for signing the JWT, with no extra step.
+Checking `cs_sign_payload` confirms it uses the exact same deobfuscation loop , same seed, same blob at `0x10077b`, but the deobfuscated bytes are passed directly as the HMAC key for signing the JWT, with no extra step.
 
 So the same underlying secret is used two different ways:
 
@@ -246,7 +246,7 @@ The output is clean readable ASCII — which is a good sign the loop reconstruct
 
 ### Forging the JWT and hitting the API
 
-Now that we have the signing key, we can build our own JWT with `role: "admin"` — something the app's own code never does — and sign it with the same key the server uses to verify:
+Now that we have the signing key, we can build our own JWT with `role: "admin"`  and sign it with the same key the server uses to verify:
 
 ```python
 import json, base64, hmac, hashlib, requests, urllib3
@@ -327,7 +327,7 @@ data = resp.json()
 print(unseal(data["enc"]))
 ```
 
-Output (relevant fields):
+Output:
 
 ```json
 {
