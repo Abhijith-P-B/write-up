@@ -41,7 +41,7 @@ webView.addJavascriptInterface(new h7(uqVar, new TokenSigner()), "CakeBridge");
 webView.loadUrl("https://cakesearch.challs.brunnerne.xyz:31000/positions");
 ```
 
-So the entire job board is just a WebView loading a remote URL. More importantly, it exposes a JavaScript bridge called `CakeBridge` to that page — meaning the web page can call native Android code directly from JavaScript.
+So the entire job board is just a WebView loading a remote URL. More importantly, it exposes a JavaScript bridge called `CakeBridge` to that page  means that the web page can call native Android code directly from JavaScript.
 
 ### The Bridge (h7.java)
 
@@ -67,7 +67,7 @@ public final String decrypt(String str) {
 public final String getAppVersion() { return "2.1-sealed"; }
 ```
 
-The log message helps us alot:  `"Could not unseal a requisition payload"`. Some job postings arrive sealed (encrypted) and this `decrypt()` method is what unlocks them. The version string `"2.1-sealed"` confirms this is intentional. That's the "or at least some of them..." from the challenge description right there.
+The log message helps us alot:  `"Could not unseal a requisition payload"`. Some job postings arrive sealed (encrypted) and this `decrypt()` method is what unlocks them. The version string `"2.1-sealed"`shows that it is intentionally sealed. That's the "or at least some of them..." from the description of the challenge.
 
 ### TokenSigner.java — things go native
 
