@@ -9,7 +9,7 @@ adb install adb_test_application.apk
 Then launched the main activity using:
 
 ```bash
-adb shell am start <package_name>/<main_activity>
+adb shell am start io.hextree.adbtestapplication/.MainActivity
 ```
 
 The application opened successfully and displayed the flag.
