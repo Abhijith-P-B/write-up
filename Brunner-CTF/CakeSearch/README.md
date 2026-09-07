@@ -74,7 +74,7 @@ The log message helps us alot:  `"Could not unseal a requisition payload"`. Some
 ```java
 public final class TokenSigner {
     static {
-        System.loadLibrary("cakesearch"); // loads libcakesearch.so
+        System.loadLibrary("cakesearch");
     }
 
     private final native byte[] nativeContentKey();
@@ -85,7 +85,7 @@ public final class TokenSigner {
         ii iiVar = new ii();
         iiVar.f(uqVar.f349b, "sub");
         iiVar.f(Integer.valueOf(uqVar.a), "uid");
-        iiVar.f("user", "role");     // <-- always hardcoded as "user"
+        iiVar.f("user", "role");
         iiVar.f(Long.valueOf(currentTimeMillis), "iat");
         iiVar.f(Long.valueOf((uqVar.c * 60) + currentTimeMillis), "exp");
         return nativeSign(iiVar.toString());
@@ -170,7 +170,7 @@ void cs_content_key(undefined8 param_1)
     int local_14;
 
     lVar1 = 0;
-    local_14 = -0x35b1a15e;    // hardcoded seed
+    local_14 = -0x35b1a15e;   
     do {
         local_14 = local_14 * 0x41c64e6d + 0x3039;
         local_34[lVar1] = null_ARRAY_0010077b[lVar1]
