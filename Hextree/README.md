@@ -344,8 +344,6 @@ The state machine reached `GET_FLAG` and the flag was displayed.
 
 Flag : `HXT{sometimes-require-multiple-calls-5133au2}`
 
-Yes — then the write-up should describe **your actual approach**, i.e. you made a small PoC app with a button that constructs and sends the nested Intent.
-
 ## Flag 5 — Intent in Intent
 
 For this level, `Flag5Activity` expects an **Intent inside another Intent**. Looking at the activity code, I found that it retrieves the nested Intent using:
