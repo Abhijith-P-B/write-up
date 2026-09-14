@@ -218,12 +218,13 @@ I followed `R.string.ApiKey` to `strings.xml`, where I found the API key:
 
 Flag : `HXT{android-api-key-b1872g}`
 
-
 # Flag 7 — Calling the Weather API Directly
 
-After finding the API endpoint and the API key, I opened the endpoint in **Burp Suite's built-in browser** and intercepted the request. I then sent it to **Repeater**, where I could modify the request and see how the server responded.
+After finding the API endpoint and API key, I opened the endpoint in **Burp Suite's built-in browser** and intercepted the request. I then sent it to **Repeater** so I could modify the request and test it.
 
-I went back to the JADX code to understand what parameters the application was adding to the API request. In the `b()` method, I found:
+To figure out what parameters were required, I went back to the code I found in JADX.
+
+The ZIP-code request was constructed using:
 
 ```java
 private String b(String str) {
@@ -236,9 +237,14 @@ private String b(String str) {
 }
 ```
 
-This showed me that the request uses `whichClient=NDFDgen` and takes the ZIP code through the `zipCodeList` parameter. I used the ZIP code `42`, which I had already found from the application's ZIP-code check.
+From this, I added:
 
-I then followed the `c()` method to see what other parameters were being added:
+```text
+whichClient=NDFDgen
+zipCodeList=42
+```
+
+I then checked the `c()` method to find the other parameters:
 
 ```java
 private StringBuffer c() {
@@ -247,7 +253,10 @@ private StringBuffer c() {
 
     try {
         stringBuffer.append(
-            URLEncoder.encode(f449d.format(new Date()), "UTF-8")
+            URLEncoder.encode(
+                f449d.format(new Date()),
+                "UTF-8"
+            )
         );
     } catch (UnsupportedEncodingException unused) {
     }
@@ -265,7 +274,7 @@ private StringBuffer c() {
 }
 ```
 
-From this, I added the following parameters to the request in Repeater:
+I added the parameters from this method to the request:
 
 ```text
 product=time-series
@@ -280,113 +289,24 @@ wwa=wwa
 Submit=Submit
 ```
 
-I also added the API key I found in the previous flag as the `X-API-KEY` header:
+I also added the `X-API-KEY` header using the API key I found in the previous flag.
 
-```http
-X-Api-Key: HXT{android-api-key-b1872g}
-```
-
-While testing the request, I got an error related to the `begin` date. I went back to JADX and checked how the application formats the date. I found:
+When I first sent the request, the server returned an **invalid begin date** error. I went back to JADX and found the date format:
 
 ```java
 private static final SimpleDateFormat f449d =
     new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");
 ```
 
-So I changed the `begin` parameter to follow this format. In the request, it appeared URL-encoded as:
+So I changed the `begin` parameter to match the required format:
 
 ```text
-begin=2026-09-08T13%3A00
+yyyy-MM-dd'T'HH:mm
 ```
 
-After putting the API key, ZIP code, client, product, date, and the remaining parameters together, the request looked like:
+I also used the ZIP code `42`, which I had found from the application's ZIP-code validation.
 
-```http
-GET /xml/SOAP_server/ndfdXMLclient.php?whichClient=NDFDgen&zipCodeList=42&product=time-series&begin=2026-09-08T13%3A00&maxt=maxt&mint=mint&dew=dew&appt=appt&wx=wx&icons=icons&wwa=wwa&Submit=Submit HTTP/2
-Host: ht-api-mocks-lcfc4kr5oa-uc.a.run.app
-User-Agent: HextreeForecastUSA/v4.x
-X-Api-Key: HXT{android-api-key-b1872g}
-```
-
-I sent the modified request through Repeater and checked the response. The flag was included in the API response:
-
-```text
-HXT{android-api-h192gsa0}
-```
-
-**Flag:** `HXT{android-api-h192gsa0}`
-
-# Flag — Extracting the API Key from Native Code
-
-After opening the APK in **JADX-GUI**, I found that the API key was not directly visible in the Java code. Instead, the application was using a native library from the `lib` folder.
-
-The `lib` folder contained different versions of the library for different architectures. Since the application was running on an emulator, I focused on the native library that matched the emulator's architecture.
-
-I initially considered using **Ghidra** to reverse engineer the native library, but while inspecting the library I found an exported JNI function:
-
-```text
-Java_io_Hextree_USA_internetUtil_getKey
-```
-
-The function name gave me useful information. It showed that the native function was connected to the `InternetUtil` class and the native method `getKey`.
-
-Instead of completely reversing the native binary, I decided to recreate the Java side of the JNI interface and call the existing native function.
-
-I created the following class:
-
-```java
-package io.hextree.weatherusa;
-
-public class InternetUtil {
-
-    private static native String getKey(String str);
-
-    public static String solve() {
-        System.loadLibrary("native-lib");
-        return getKey("moiba1cybar8smart4sheriff4securi");
-    }
-}
-```
-
-The important part was:
-
-```java
-private static native String getKey(String str);
-```
-
-This declares a native method without providing its implementation in Java. The implementation is inside the native library.
-
-I then loaded the library using:
-
-```java
-System.loadLibrary("native-lib");
-```
-
-This makes the native functions from `native-lib` available to the application process.
-
-After loading the library, I called the native function:
-
-```java
-return getKey("moiba1cybar8smart4sheriff4securi");
-```
-
-I used the parameter required by the native function and returned whatever value it produced.
-
-Finally, I called `solve()` from my `MainActivity` and logged the result:
-
-```java
-Log.d("FLAG", InternetUtil.solve());
-```
-
-After running the application, I checked **Logcat** and found:
-
-```text
-HXT{obfuscated-api-key-asb126us}
-```
-
-So I was able to extract the API key without fully reversing the native library in Ghidra. By finding the JNI function, recreating the corresponding Java interface, loading the existing library, and calling the native method, I could directly obtain its return value.
-
-**Flag:** `HXT{obfuscated-api-key-asb126us}`
+After correcting the date and making sure all the parameters matched the ones used by the application, I sent the request again through Repeater. I checked the responses and searched through them for the flag. After the request was correctly constructed, the flag was returned in the response.
 
 # Flag 1 — Basic Exported Activity
 
