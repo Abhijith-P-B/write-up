@@ -1363,8 +1363,6 @@ The receiver then printed the generated flag to Logcat:
 
 # Flag 18 — Hijacking Broadcast Intent
 
-[svg](https://github.com/Abhijith-P-B/write-up/tree/main/Hextree#flag-18--hijacking-broadcast-intent)
-
 After opening the application in **JADX**, I went to `Flag18Activity` and looked at what happens inside `onCreate()`.
 
 I found that the activity creates a broadcast with the action:
