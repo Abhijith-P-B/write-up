@@ -1578,7 +1578,8 @@ flag = HXT{returned-result-ds82s}
 
 Finally, I displayed the returned flag using a Toast:
 ```text
-Flag: HXT{returned-result-ds82s}```
+Flag: HXT{returned-result-ds82s}
+```
 
 # Flag 20 — Spoofing the Notification Intent
 
